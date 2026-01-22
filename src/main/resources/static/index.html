@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản Lý Sinh Viên</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #f8f9fa; }
+        .card { border-radius: 15px; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .table thead { background-color: #0d6efd; color: white; }
+        .btn-action { border-radius: 8px; margin: 0 2px; }
+    </style>
+</head>
+<body>
+
+<div class="container py-5">
+    <div class="card p-4">
+        <h2 class="text-center text-primary mb-4"><i class="fas fa-user-graduate"></i> QUẢN LÝ SINH VIÊN</h2>
+
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <div class="input-group">
+                    <input type="text" id="searchInput" class="form-control" placeholder="Nhập tên sinh viên...">
+                    <button class="btn btn-outline-primary" onclick="searchStudent()"><i class="fas fa-search"></i> Tìm kiếm</button>
+                </div>
+            </div>
+            <div class="col-md-6 text-end">
+                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#studentModal" onclick="prepareAdd()">
+                    <i class="fas fa-plus-circle"></i> Thêm sinh viên mới
+                </button>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle" id="studentTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Họ và Tên</th>
+                        <th>Email</th>
+                        <th class="text-center">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="studentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">Thông tin sinh viên</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="studentForm">
+                    <div class="mb-3" id="divIdField" style="display: none;">
+                        <label class="form-label">ID</label>
+                        <input type="number" id="s_id" class="form-control" disabled>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Họ tên</label>
+                        <input type="text" id="s_name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" id="s_email" class="form-control" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100" id="btnSave">Lưu dữ liệu</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    const apiBase = "/api/students";
+    let isEditMode = false;
+
+    // 1. Tải danh sách
+    async function loadStudents() {
+        try {
+            const res = await fetch(apiBase);
+            const data = await res.json();
+            renderTable(data);
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    // 2. Tìm kiếm
+    async function searchStudent() {
+        const name = document.getElementById('searchInput').value;
+        const res = await fetch(`${apiBase}/search?name=${name}`);
+        const data = await res.json();
+        renderTable(data);
+    }
+
+    // 3. Xóa
+    async function deleteStudent(id) {
+        if(confirm('Bạn có chắc chắn muốn xóa sinh viên ID: ' + id + '?')) {
+            await fetch(`${apiBase}/delete/${id}`, { method: 'POST' });
+            loadStudents();
+        }
+    }
+
+    // 4. Xử lý Form Submit (Thêm / Sửa)
+    document.getElementById('studentForm').onsubmit = async (e) => {
+        e.preventDefault();
+        
+        const id = document.getElementById('s_id').value;
+        const name = document.getElementById('s_name').value;
+        const email = document.getElementById('s_email').value;
+
+        // Tạo object dữ liệu để gửi đi
+        const studentData = {
+            name: name,
+            email: email
+        };
+
+        let url = apiBase;
+        
+        if (isEditMode) {
+            // Nếu đang sửa, thêm ID vào URL
+            url = `${apiBase}/update/${id}`;
+            // Với code backend update hiện tại, ID trong body không bắt buộc nhưng gửi cho chắc
+            studentData.id = id; 
+        }
+
+        // Gửi request FETCH với JSON body
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json' // Báo backend là tôi gửi JSON
+                },
+                body: JSON.stringify(studentData) // Chuyển object thành chuỗi JSON
+            });
+
+            if (response.ok) {
+                // Đóng modal và tải lại bảng
+                const modal = bootstrap.Modal.getInstance(document.getElementById('studentModal'));
+                modal.hide();
+                loadStudents();
+                alert(isEditMode ? "Cập nhật thành công!" : "Thêm mới thành công!");
+            } else {
+                alert("Có lỗi xảy ra! Vui lòng kiểm tra console.");
+                console.log(response);
+            }
+        } catch (error) {
+            console.error("Lỗi:", error);
+        }
+    };
+
+    function renderTable(students) {
+        const tbody = document.querySelector('#studentTable tbody');
+        if(!students || students.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center">Không có dữ liệu</td></tr>';
+            return;
+        }
+        tbody.innerHTML = students.map(s => `
+            <tr>
+                <td><b>#${s.id}</b></td>
+                <td>${s.name}</td>
+                <td>${s.email}</td>
+                <td class="text-center">
+                    <button class="btn btn-sm btn-warning btn-action" onclick="prepareEdit(${s.id}, '${s.name}', '${s.email}')">
+                        <i class="fas fa-edit"></i> Sửa
+                    </button>
+                    <button class="btn btn-sm btn-danger btn-action" onclick="deleteStudent(${s.id})">
+                        <i class="fas fa-trash"></i> Xóa
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    // Chuẩn bị form để THÊM MỚI
+    function prepareAdd() {
+        isEditMode = false;
+        document.getElementById('studentForm').reset();
+        document.getElementById('divIdField').style.display = 'none'; // Ẩn ô ID đi
+        document.getElementById('modalTitle').innerText = "Thêm Sinh Viên Mới";
+    }
+
+    // Chuẩn bị form để SỬA
+    function prepareEdit(id, name, email) {
+        isEditMode = true;
+        document.getElementById('divIdField').style.display = 'block'; // Hiện ô ID
+        document.getElementById('s_id').value = id;
+        document.getElementById('s_name').value = name;
+        document.getElementById('s_email').value = email;
+        document.getElementById('modalTitle').innerText = "Chỉnh sửa sinh viên";
+        new bootstrap.Modal(document.getElementById('studentModal')).show();
+    }
+
+    window.onload = loadStudents;
+</script>
+</body>
+</html>
